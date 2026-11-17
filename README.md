@@ -15,10 +15,10 @@ package contains the following:
 The launch file picks one safety node and one follower, so the same package can run camer and LIDAR nodes.
 
 ```
-milestone3/
+src/
 ├── config/params.yaml          # every tunable value, one block per node
 ├── launch/milestone3_launch.py # starts safety + master_control + follower + lap counter
-└── milestone3/
+└── Racing_System/
     ├── vision_follow_node.py
     ├── vision_safety_node.py
     ├── laps_counting_node.py   # runs as lap_counter_node
