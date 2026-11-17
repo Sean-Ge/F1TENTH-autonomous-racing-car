@@ -24,8 +24,8 @@ src/
     ├── laps_counting_node.py   # runs as lap_counter_node
     ├── master_control_node.py
     ├── gap_follow_node.py      # vision_follow_node's ray logic on the LIDAR
-    ├── wall_follow_node.py     # Milestone 2
-    ├── safety_node.py          # Milestone 2
+    ├── wall_follow_node.py     
+    ├── safety_node.py          
     └── vision/                 # helper code used by vision_follow_node
         ├── camera_model.py     # pixel <-> floor geometry
         ├── free_space.py       # floor mask, clean-up, obstacle padding
