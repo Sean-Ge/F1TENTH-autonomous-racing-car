@@ -1,0 +1,170 @@
+# Tunable parameters for every milestone3 node.
+#
+# Nodes read these values once at startup: after editing, rebuild and restart the launch.
+# Write every number with a decimal point (1.0, not 1), or the node will crash on startup.
+# The exceptions are values that are whole numbers in the code (pixel rows, kernel sizes,
+# HSV thresholds, ray_half_fov_deg, anything marked "whole number"): keep those without a decimal point.
+# lap_counter_node's target_laps is not here: the launch file sets it from its laps:= argument.
+
+safety_node:
+  ros__parameters:
+    odom_topic: "/odom"                    # "/odom" on the car, "ego_racecar/odom" in the sim
+    follower_topic: "/gap_follow_drive"    # the follower's commands ("/wall_follow_drive" in wall mode)
+
+    # Car outline, measured from the LIDAR (m)
+    car_front: 0.175            # LIDAR to front bumper
+    car_rear: 0.33             # LIDAR to rear bumper
+    car_half_width: 0.15      # centre line to outer edge
+
+    # Steering geometry
+    lidar_to_rear_axle: 0.26   # LIDAR back to the rear axle (m)   
+    wheelbase: 0.33            # rear axle to front axle (m) 
+    max_steering_angle: 0.40   # most the servo can steer (rad)
+
+    # TTC threshold (time the car needs to stop) = reaction_time + speed / (2 * brake_decel)
+    # The car is stopped when the time to collision along its path drops below that.
+    # Both are ESTIMATES until we run a brake test. Too large a reaction_time or too small a
+    # brake_decel only makes the car stop earlier; the other way round makes it stop too late.
+    reaction_time: 0.15        # delay between seeing an obstacle and the car starting to slow (s)
+    brake_decel: 2.5           # how hard the car slows once braking (m/s^2)
+
+    # Stages before a full stop. A stage starts when the TTC drops below its ttc_factor times the
+    # TTC threshold above, and caps the follower's speed at its speed_factor times what it asked for.
+    # Bigger ttc_factor = the stage starts earlier. Keep caution_ttc_factor >= slow_ttc_factor >= 1.0
+    caution_ttc_factor: 2.0    # stage 1 starts here
+    caution_speed_factor: 0.75 # stage 1 speed cap
+    slow_ttc_factor: 1.5       # stage 2 starts here
+    slow_speed_factor: 0.5     # stage 2 speed cap
+    min_drive_speed: 0.7       # slowest the car can actually drive (m/s); a cap never goes below this
+
+    # Gap left over once the car has stopped
+    stop_margin: 0.10          # in front of the bumper (m)
+    side_margin: 0.05          # each side of the bumper (m); 0.0 lets the nose pass right beside a wall
+
+    path_step: 0.05            # spacing of the checks along the path (m); keep it <= stop_margin
+    release_time: 0.3          # path must stay clear this long after a stop before driving again (s)
+
+    # Input health checks: the node reports unsafe if either fails
+    odom_timeout: 0.2          # longest gap allowed between odometry messages (s)
+    min_valid_fraction: 0.5    # share of forward beams that must return a reading (0.0 turns it off)
+
+vision_safety_node:
+  ros__parameters:
+    odom_topic: "/odom"   # "/odom" on the car, "ego_racecar/odom" in the sim
+    min_drive_speed: 0.7             # slowest speed the car can actually drive (m/s)
+
+    # distance safety zone in front of the camera, must stay well above the ~0.3 m minimum depth range
+    front_padding: 0.45
+
+    # TTC thresholds and speed multipliers for each braking stage
+    # all three equal: any TTC trigger goes straight to a full stop (no partial braking)
+    # 0.78 s triggers at ~0.55 m at 0.7 m/s, so TTC fires before the 0.45 m front_padding does
+    ttc_safe: 0.78
+    ttc_hard_brake: 0.78
+    ttc_full_stop: 0.78
+    mild_brake_factor: 0.6 # stage 1 speed multiplier
+    hard_brake_factor: 0.3 # stage 2 speed multiplier
+
+    # rows of the depth image to check (whole numbers)
+    row_top: 280
+    row_bottom: 340
+
+wall_follow_node:
+  ros__parameters:
+    # pd control coeffs
+    kp: 1.0
+    kd: 0.1
+
+    # wall following geometry
+    desired_distance: 0.7
+    proj_trajectory: 0.5
+    theta_rad: 1.0 # angle between ray A and ray B
+
+    velocity: 0.7
+
+master_control_node:
+  ros__parameters:
+    timeout_threshold: 0.1       # stop if safety_node sends nothing for this long (s)
+    follower_timeout: 0.1        # stop if the follower sends nothing for this long (s)
+    safety_check_period: 0.01    # how often the watchdog re-checks both (s)
+    wait_for_lap_counter: false   # hold the car at the start until the lap counter has its start picture
+
+lap_counter_node:
+  ros__parameters:
+    image_topic: "/camera/camera/color/image_raw"
+    reference_frames: 5          # first frames averaged into the start picture (whole number)
+    max_shift_px: 8              # slide the start picture up to this far sideways when comparing, out of 80 px (whole number); 0 = compare as-is
+
+    match_threshold: 0.82        # similarity at or above this looks like the start
+    leave_threshold: 0.70        # similarity below this means we have left the start
+    leave_frames: 5              # low frames in a row needed to count as having left (whole number)
+    match_window: 5              # a lap needs required_matches of the last match_window frames to match (whole numbers)
+    required_matches: 3
+    min_lap_time: 12.0           # shortest possible lap (s); keep it above half a lap and below a full one
+    image_timeout: 2.0           # warn if the camera sends nothing for this long (s)
+
+gap_follow_node:
+  ros__parameters:
+    # Car geometry: keep these the same as in the safety_node block
+    car_half_width_m: 0.15        # centre line to outer edge (m)
+    wheelbase_m: 0.33             # rear axle to front axle (m)       ESTIMATE: measure on the car
+    lidar_to_rear_axle_m: 0.26    # LIDAR back to the rear axle (m)   ESTIMATE: measure on the car
+
+    # Ray casting
+    wall_clearance_m: 0.15        # room we would like between the car's side and any obstacle (m)
+    tight_clearance_m: 0.03       # room to settle for when nothing fits with wall_clearance_m (m)
+    max_range_m: 2.2              # how far ahead the rays look (m)
+    ray_half_fov_deg: 90          # rays fan from -90 to +90 degrees, one per degree (whole number)
+    beams_per_group: 4            # LIDAR beams merged into one point, closest reading kept (whole number)
+    min_valid_fraction: 0.5       # share of forward beams that must return a reading (0.0 turns it off)
+
+    # Choosing a gap
+    gap_depth_ratio: 0.9          # a ray is "open" if it reaches this share of the longest ray
+    gap_switch_ratio: 1.3         # leave the current gap only for one this many times wider
+    min_valid_reach_m: 0.3        # stop if no ray reaches this far, even with tight_clearance_m (m)
+
+    # Steering
+    lookahead_m: 0.5              # aim this far down the chosen ray (m); shorter = sharper turns
+    max_steering_rad: 0.40        # most the servo can steer (rad)
+    max_steering_rate_dps: 200.0  # fastest the steering may change (deg/s), about what the servo can do; 0.0 = off
+    steering_offset_rad: 0.0      # servo trim added to every command (+ = left)
+
+    # Speed
+    max_speed_mps: 1.6            # top speed (m/s)
+    min_speed_mps: 0.7            # slowest driving speed (m/s)
+    slow_decel_mps2: 1.5          # how gently to slow for something ahead (m/s^2); keep below safety_node brake_decel
+    stop_gap_m: 0.3               # room to still have left after slowing (m)
+    max_lateral_accel_mps2: 3.0   # cornering limit: slows the car in tight turns at higher top speeds (m/s^2)
+
+straight_drive_node:
+  ros__parameters:
+    # Testing only (mode:=straight): drives straight ahead, ignoring the LIDAR.
+    # speed_mps is set by the speed:= launch argument.
+    steering_rad: 0.0             # servo trim so the car really drives straight (+ = left)
+
+vision_follow_node:
+  ros__parameters:
+    # Camera mounting (measured from run_1506 depth images; re-measure whenever the camera moves)
+    camera_height_m: 0.188    # Camera height above the floor (m)
+    camera_pitch_deg: -0.7    # Camera tilt (deg, + = up). Was +13.9 before the camera was re-mounted level
+
+    # Geometry & Ray Casting
+    half_width_m: 0.30        # Car's half-width (m) used to inflate obstacles sideways
+    max_range_m: 1.75          # Maximum floor lookahead distance (m)
+    ray_half_fov_deg: 89      # Half field-of-view in degrees (-89 to +89 = 179 rays)
+
+    # Free-Space HSV & Morphology (FreeSpaceConfig)
+    v_floor_min: 80           # Minimum HSV Value (0-255) for floor pixels
+    s_floor_max: 50           # Maximum HSV Saturation (0-255) for floor pixels
+    open_kernel: 5            # Kernel size (px) to remove small noise specks
+    close_kernel: 7           # Kernel size (px) to fill small holes in obstacles
+    min_vertical_px: 8        # Vertical kernel height (px) to drop flat floor tape
+
+    # Driving & No-Ray Fallback
+    min_valid_reach_m: 0.35   # Minimum free distance (m) required to drive forward
+    max_steering_rad: 0.40    # Maximum steering angle limit (rad)
+    max_speed_mps: 0.7        # Top speed (m/s) when the best ray reaches max_range_m (same as min_speed_mps, so the car drives at a constant 0.7 m/s)
+    min_speed_mps: 0.7        # Minimum driving speed (m/s) when space is tight
+    blind_speed_mps: 0.7      # No usable ray: creep at this speed while turning full left (CCW track)
+    blind_timeout_s: 3.0      # Stop if no usable ray for this long (lens covered, car wedged)
+    steering_offset_rad: 0.0 # Servo trim added to every command (+ = left); 0.17 rad ~ 10 deg, tune on the car
