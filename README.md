@@ -1,8 +1,6 @@
 # About the Repository
 
-CPEN 391 Group B6, Milestone 3: driving our F1TENTH car around the track using the RealSense camera instead of the LIDAR.
-
-The `milestone3` package contains the following:
+package contains the following:
 
 | Node | Sensor | What it does |
 |---|---|---|
